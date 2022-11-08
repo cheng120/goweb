@@ -10,9 +10,9 @@ import (
 // RunCommand is command
 func RunCommand(container framework.Container) error {
 	var rootCmd = &cobra.Command{
-		Use:   "main",
-		Short: "main 命令",
-		Long:  "main 框架提供的命令行工具，使用这个命令行工具能很方便执行框架自带命令，也能很方便编写业务命令",
+		Use:   "goweb",
+		Short: "goweb 命令",
+		Long:  "goweb 框架提供的命令行工具，使用这个命令行工具能很方便执行框架自带命令，也能很方便编写业务命令",
 		RunE: func (cmd *cobra.Command,args []string) error  {
 			cmd.InitDefaultHelpFlag()
 			return cmd.Help()

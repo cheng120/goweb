@@ -59,11 +59,11 @@ func (sc *ServiceContainer) PrintProviders() []string {
 
 // Bind 将服务容器和关键字做了绑定
 func (sc *ServiceContainer) Bind(prodiver ServiceProvider) error {
-	// sc.lock.Lock()
+	sc.lock.Lock()
 	key := prodiver.Name()
-	fmt.Println(key + " start import")
 	sc.providers[key] = prodiver
-	// sc.lock.Unlock()
+
+	sc.lock.Unlock()
 	// if provider is not defer
 	if !prodiver.IsDefer()  {
 		if err := prodiver.Boot(sc);err != nil {
@@ -72,15 +72,14 @@ func (sc *ServiceContainer) Bind(prodiver ServiceProvider) error {
 		//实例化
 		params := prodiver.Params(sc)
 		method := prodiver.Register(sc)
-		fmt.Println(key + " is importing")
 		instance, err := method(params...)
 		if err != nil {
+			fmt.Println("bind service provider ", key, " error: ", err)
 			return errors.New(err.Error())
 		}
 
 		sc.instances[key] = instance
 	}
-	fmt.Println(key + " has imported")
 
 	return nil
 }
@@ -90,8 +89,7 @@ func (sc *ServiceContainer) IsBind(key string) bool {
 }
 func (sc *ServiceContainer) findServiceProvider(key string) ServiceProvider {
 	sc.lock.RLock()
-	defer sc.lock.RUnlock()
-
+	defer sc.lock.RUnlock()	
 	if sp,ok := sc.providers[key];ok {
 		return sp
 	}
@@ -138,18 +136,21 @@ func (sc *ServiceContainer) make(key string,params []interface{}, forceNew bool)
 	sc.lock.RLock()
 	defer sc.lock.RUnlock()
 	// 查询是否已经注册了这个服务提供者，如果没有注册，则返回错误
-
 	sp := sc.findServiceProvider(key)
+
 	if sp == nil {
 		return nil,errors.New("contract " + key + " have not register")
 	}
 
-	if forceNew {
-		return sc.newInstance(sp,params)
-	}
+	
 	// 不需要强制重新实例化，如果容器中已经实例化了，那么就直接使用容器中的实例
+	
 	if ins, ok := sc.instances[key];ok {
 		return ins,nil
+	}
+
+	if forceNew {
+		return sc.newInstance(sp,params)
 	}
 	// 容器中还未实例化，则进行一次实例化
 	insn,err := sc.newInstance(sp,params)
@@ -158,4 +159,15 @@ func (sc *ServiceContainer) make(key string,params []interface{}, forceNew bool)
 	}
 	sc.instances[key] = insn
 	return insn,nil
+}
+
+
+// NameList 列出容器中所有服务提供者的字符串凭证
+func (c *ServiceContainer) NameList() []string {
+	ret := []string{}
+	for _, provider := range c.providers {
+		name := provider.Name()
+		ret = append(ret, name)
+	}
+	return ret
 }
