@@ -203,6 +203,78 @@ var middlewareCreateCommand = &cobra.Command{
     },
 }
 
+// 从gin-contrib中迁移中间件
+var middlewareMigrateThirdCommand = &cobra.Command{
+    Use:   "migrate",
+    Short: "迁移gin-contrib中间件, 迁移地址：https://github.com/gin-contrib/[middleware].git",
+    RunE: func(c *cobra.Command, args []string) error {
+        container := c.GetContainer()
+        fmt.Println("迁移一个Gin中间件")
+        var repo string
+        {
+            prompt := &survey.Input{
+                Message: "请输入中间件地址：",
+            }
+            err := survey.AskOne(prompt, &repo)
+            if err != nil {
+                return err
+            }
+        }
+        // step2 : 下载git到一个目录中
+        appService := container.MustMake(contract.AppKey).(contract.App)
+
+        middlewarePath := appService.MiddlewareFolder()
+        url := repo
+        fmt.Println("下载中间件 gin-contrib:")
+        fmt.Println(url)
+        _, err := git.PlainClone(path.Join(middlewarePath, repo), false, &git.CloneOptions{
+            URL:      url,
+            Progress: os.Stdout,
+        })
+        if err != nil {
+            return err
+        }
+
+        // step3:删除不必要的文件 go.mod, go.sum, .git
+        repoFolder := path.Join(middlewarePath, repo)
+        fmt.Println("remove " + path.Join(repoFolder, "go.mod"))
+        os.Remove(path.Join(repoFolder, "go.mod"))
+        fmt.Println("remove " + path.Join(repoFolder, "go.sum"))
+        os.Remove(path.Join(repoFolder, "go.sum"))
+        fmt.Println("remove " + path.Join(repoFolder, ".git"))
+        os.RemoveAll(path.Join(repoFolder, ".git"))
+
+        // step4 : 替换关键词
+        filepath.Walk(repoFolder, func(path string, info os.FileInfo, err error) error {
+            if info.IsDir() {
+                return nil
+            }
+
+            if filepath.Ext(path) != ".go" {
+                return nil
+            }
+
+            c, err := ioutil.ReadFile(path)
+            if err != nil {
+                return err
+            }
+            isContain := bytes.Contains(c, []byte("github.com/gin-gonic/gin"))
+            if isContain {
+                fmt.Println("更新文件:" + path)
+                c = bytes.ReplaceAll(c, []byte("github.com/gin-gonic/gin"), []byte("goweb/framework/gin"))
+                err = ioutil.WriteFile(path, c, 0644)
+                if err != nil {
+                    return err
+                }
+            }
+
+            return nil
+        })
+        return nil
+    },
+}
+
+
 var middlewareTmp string = `package {{.}}
 import "goweb/framework/gin"
 // {{.|title}}Middleware 代表中间件函数
